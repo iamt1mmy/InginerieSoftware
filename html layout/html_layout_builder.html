@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>HTML Layout Builder</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    .container {
+      max-width: 950px;
+      margin: 40px auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 25px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2563eb;
+    }
+
+    .inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    input, select, button {
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #1e40af;
+    }
+
+    textarea {
+      width: 100%;
+      height: 260px;
+      font-family: monospace;
+      background: #f8fafc;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+      white-space: pre;
+    }
+
+    ul {
+      list-style-type: none;
+      padding-left: 20px;
+    }
+
+    .tag-item {
+      background: #eef2ff;
+      border-radius: 8px;
+      padding: 5px 10px;
+      margin: 5px 0;
+    }
+
+    .tag-controls button {
+      background: #dc2626;
+      margin-left: 5px;
+      font-size: 12px;
+      padding: 5px 8px;
+      border-radius: 6px;
+    }
+
+    .tag-controls button.edit {
+      background: #16a34a;
+    }
+
+    .tag-controls button:hover {
+      opacity: 0.85;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧩 HTML Layout Builder</h1>
+
+    <div class="inputs">
+      <select id="parentTag">
+        <option value="">-- Tag părinte (implicit: body) --</option>
+      </select>
+      <input type="text" id="tag" placeholder="ex: div, p, h1, img">
+      <input type="text" id="content" placeholder="conținut text / src imagine">
+      <button onclick="adaugaTag()">Adaugă</button>
+      <button onclick="exportHTML()">💾 Exportă HTML</button>
+      <button onclick="resetare()">🗑️ Reset</button>
+    </div>
+
+    <h3>Structura paginii:</h3>
+    <div id="structura">(nimic încă)</div>
+
+    <h3>Cod HTML generat:</h3>
+    <textarea id="rezultat" readonly></textarea>
+  </div>
+
+  <script>
+    let tagTree = { id: 0, tag: "html", content: "", children: [
+      { id: 1, tag: "head", content: "", children: [] },
+      { id: 2, tag: "body", content: "", children: [] }
+    ]};
+    let nextId = 3;
+
+    // --- Funcții principale ---
+    function adaugaTag() {
+      const tag = document.getElementById("tag").value.trim();
+      const content = document.getElementById("content").value.trim();
+      const parentTag = document.getElementById("parentTag").value || "body";
+
+      if (!tag) return alert("Introdu un tag HTML valid!");
+
+      const parent = gasesteTag(tagTree, parentTag);
+      if (!parent) return alert("Tag-ul părinte nu există!");
+
+      parent.children.push({ id: nextId++, tag, content, children: [] });
+      actualizeaza();
+    }
+
+    function gasesteTag(nod, tag) {
+      if (nod.tag === tag) return nod;
+      for (let copil of nod.children) {
+        const gasit = gasesteTag(copil, tag);
+        if (gasit) return gasit;
+      }
+      return null;
+    }
+
+    function actualizeaza() {
+      actualizeazaSelect();
+      afisareStructura();
+      actualizeazaHTML();
+    }
+
+    function actualizeazaSelect() {
+      const select = document.getElementById("parentTag");
+      const taguri = colecteazaTaguri(tagTree);
+      select.innerHTML = `<option value="">-- Tag părinte (implicit: body) --</option>` +
+        taguri.map(t => `<option value="${t}">${t}</option>`).join("");
+    }
+
+    function colecteazaTaguri(nod) {
+      let rezultat = [nod.tag];
+      for (let copil of nod.children) {
+        rezultat = rezultat.concat(colecteazaTaguri(copil));
+      }
+      return rezultat;
+    }
+
+    function afisareStructura() {
+      const container = document.getElementById("structura");
+      container.innerHTML = genereazaLista(tagTree);
+    }
+
+    function genereazaLista(nod) {
+      let html = `<ul>`;
+      for (let copil of nod.children) {
+        html += `<li class="tag-item">
+          &lt;${copil.tag}&gt; ${copil.content ? " - " + copil.content : ""}
+          <span class="tag-controls">
+            <button class="edit" onclick="editeazaTag(${copil.id})">✏️</button>
+            <button onclick="stergeTag(${copil.id})">🗑️</button>
+          </span>
+          ${copil.children.length > 0 ? genereazaLista(copil) : ""}
+        </li>`;
+      }
+      html += `</ul>`;
+      return html;
+    }
+
+    function editeazaTag(id) {
+      const tag = gasesteDupaId(tagTree, id);
+      if (!tag) return;
+
+      const nouTag = prompt("Noul nume al tag-ului:", tag.tag) || tag.tag;
+      const nouContinut = prompt("Noul conținut (lasă gol pentru nimic):", tag.content) || "";
+      tag.tag = nouTag.trim();
+      tag.content = nouContinut.trim();
+      actualizeaza();
+    }
+
+    function stergeTag(id) {
+      if (!confirm("Sigur vrei să ștergi acest tag și sub-tagurile lui?")) return;
+      stergeDupaId(tagTree, id);
+      actualizeaza();
+    }
+
+    function gasesteDupaId(nod, id) {
+      if (nod.id === id) return nod;
+      for (let copil of nod.children) {
+        const gasit = gasesteDupaId(copil, id);
+        if (gasit) return gasit;
+      }
+      return null;
+    }
+
+    function stergeDupaId(nod, id) {
+      nod.children = nod.children.filter(c => c.id !== id);
+      for (let copil of nod.children) {
+        stergeDupaId(copil, id);
+      }
+    }
+
+    function actualizeazaHTML() {
+      const html = genereazaHTML(tagTree, 0);
+      document.getElementById("rezultat").value = "<!DOCTYPE html>\n" + html;
+    }
+
+    function genereazaHTML(nod, nivel) {
+      let indent = "  ".repeat(nivel);
+      let text = `${indent}<${nod.tag}>\n`;
+
+      for (let copil of nod.children) {
+        if (copil.children.length === 0 && copil.content) {
+          text += `${"  ".repeat(nivel + 1)}<${copil.tag}>${copil.content}</${copil.tag}>\n`;
+        } else {
+          text += genereazaHTML(copil, nivel + 1);
+        }
+      }
+
+      text += `${indent}</${nod.tag}>\n`;
+      return text;
+    }
+
+    function exportHTML() {
+      const html = document.getElementById("rezultat").value;
+      const blob = new Blob([html], { type: "text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "layout_generat.html";
+      a.click();
+    }
+
+    function resetare() {
+      if (confirm("Sigur vrei să ștergi tot?")) {
+        tagTree = { id: 0, tag: "html", content: "", children: [
+          { id: 1, tag: "head", content: "", children: [] },
+          { id: 2, tag: "body", content: "", children: [] }
+        ]};
+        nextId = 3;
+        actualizeaza();
+      }
+    }
+
+    actualizeaza();
+  </script>
+</body>
+</html>
